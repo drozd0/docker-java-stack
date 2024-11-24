@@ -1,0 +1,92 @@
+services:
+
+  broker:
+    image: confluentinc/cp-kafka:$CONFLUENT_VERSION
+    hostname: broker
+    container_name: broker
+    ports:
+      - '9092:9092'
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: |
+        INTERNAL_CONTROLLER:PLAINTEXT,INTERNAL_PLAINTEXT:PLAINTEXT,EXTERNAL_PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: |
+        INTERNAL_PLAINTEXT://broker:19092, \
+        EXTERNAL_PLAINTEXT://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL_PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: INTERNAL_CONTROLLER
+
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:19093'
+      KAFKA_LISTENERS: 'INTERNAL_PLAINTEXT://broker:19092,INTERNAL_CONTROLLER://broker:19093,EXTERNAL_PLAINTEXT://0.0.0.0:9092'
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: 'true'
+
+      CLUSTER_ID: "LH3NvrMERUKx7naSsFgTdA"
+
+  schema:
+    image: confluentinc/cp-schema-registry:$CONFLUENT_VERSION
+    hostname: schema
+    container_name: schema
+    depends_on:
+      - broker
+    ports:
+      - '8081:8081'
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_AVRO_COMPATIBILITY_LEVEL: BACKWARD
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:19096'
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+
+  connect:
+    image: confluentinc/cp-kafka-connect:$CONFLUENT_VERSION
+    hostname: connect
+    container_name: connect
+    depends_on:
+      - broker
+    ports:
+      - '8082:8082'
+    environment:
+      GROUP_ID: 1
+      CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: All
+      CONNECT_BOOTSTRAP_SERVERS: 'broker:19092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_REST_PORT: 8082
+      CONNECT_LISTENERS: http://0.0.0.0:8082
+      CONNECT_GROUP_ID: kafka-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+
+      CONNECT_KEY_SUBJECT_NAME_STRATEGY: io.confluent.kafka.serializers.subject.RecordNameStrategy
+      CONNECT_VALUE_SUBJECT_NAME_STRATEGY: io.confluent.kafka.serializers.subject.RecordNameStrategy
+
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema:8081
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema:8081
+
+      CONNECT_INTERNAL_KEY_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
+      CONNECT_INTERNAL_VALUE_CONVERTER: 'org.apache.kafka.connect.json.JsonConverter'
+
+      CONNECT_PLUGIN_PATH: '/usr/share/connect/plugins,/usr/share/java,/usr/share/confluent-hub-components'
+      CLASSPATH: '/etc/kafka-connect/jars/*:/etc/kafka-connect/custom/jars/*'
+
+      CONNECT_SECURITY_PROTOCOL: PLAINTEXT
+
+networks:
+  default:
+    name: docker-java-stack
